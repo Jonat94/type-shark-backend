@@ -1,8 +1,12 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import admin from "firebase-admin";
 import fs from "fs";
+
+// On récupère la variable d'environnement
+const apiKey = process.env.API_KEY;
 
 const app = express();
 app.use(cors());
@@ -17,7 +21,7 @@ app.use(limiter);
 
 // 🔑 Firebase Admin
 const serviceAccount = JSON.parse(
-  fs.readFileSync("./firebase-config.js", "utf8")
+  fs.readFileSync("./serviceAccountKey.json", "utf8")
 );
 
 admin.initializeApp({
@@ -28,9 +32,9 @@ const db = admin.firestore();
 
 app.post("/score", async (req, res) => {
   try {
-    const { pseudo, score, apiKey } = req.body;
+    const { pseudo, score, apiKey: userApiKey } = req.body;
 
-    if (apiKey !== process.env.API_KEY) {
+    if (userApiKey !== apiKey) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
