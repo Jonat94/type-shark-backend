@@ -122,5 +122,50 @@ app.post("/register", async (req, res) => {
   }
 });
 
+// === Endpoint Login ===
+app.post("/login", async (req, res) => {
+  try {
+    const { email, password, apiKey: clientKey } = req.body;
+
+    // Vérification de la clé côté client
+    if (clientKey !== apiKey) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email et mot de passe requis" });
+    }
+
+    // Recherche de l'utilisateur dans Firestore
+    const usersRef = db.collection("users");
+    const querySnapshot = await usersRef.where("email", "==", email).get();
+
+    if (querySnapshot.empty) {
+      return res.status(401).json({ error: "Utilisateur non trouvé" });
+    }
+
+    const userDoc = querySnapshot.docs[0];
+    const userData = userDoc.data();
+
+    // Ici tu compares le mot de passe (plaintext ou hash selon ton choix)
+    if (userData.password !== password) {
+      return res.status(401).json({ error: "Mot de passe incorrect" });
+    }
+
+    // Création d'un custom token Firebase pour ce user
+    const token = await admin.auth().createCustomToken(userDoc.id);
+
+    res.json({
+      success: true,
+      uid: userDoc.id,
+      pseudo: userData.pseudo,
+      token,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("API running on port", PORT));
