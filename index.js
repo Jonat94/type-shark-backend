@@ -66,5 +66,61 @@ app.get("/leaderboard", async (req, res) => {
   res.json(scores);
 });
 
+app.post("/register", async (req, res) => {
+  try {
+    const { email, password, pseudo } = req.body;
+
+    // 🔒 Validation basique
+    if (!email || !password || !pseudo) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
+
+    // 🔎 Vérification pseudo unique
+    const pseudoRef = db.collection("pseudos").doc(pseudo);
+    const pseudoSnap = await pseudoRef.get();
+
+    if (pseudoSnap.exists) {
+      return res.status(409).json({ error: "Pseudo already used" });
+    }
+
+    // 👤 Création utilisateur Firebase Auth
+    const userRecord = await admin.auth().createUser({
+      email,
+      password,
+    });
+
+    const uid = userRecord.uid;
+
+    // 🧱 Création Firestore atomique
+    const batch = db.batch();
+
+    batch.set(pseudoRef, { uid });
+    batch.set(db.collection("users").doc(uid), {
+      email,
+      pseudo,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+
+    // 🔑 Création d’un custom token
+    const token = await admin.auth().createCustomToken(uid);
+
+    res.json({
+      success: true,
+      uid,
+      token,
+    });
+  } catch (err) {
+    console.error(err);
+
+    if (err.code === "auth/email-already-exists") {
+      return res.status(409).json({ error: "Email already used" });
+    }
+
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("API running on port", PORT));
